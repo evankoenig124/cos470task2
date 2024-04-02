@@ -31,5 +31,7 @@ Example output of prediction:
 tensor([[    2, 15442,    11,     2, 14359,  5938,     2,   647]])
 
 [Text]  The rainbows in the mist dazzle the eyes .
+
+
 [Label] positive
 
