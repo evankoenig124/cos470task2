@@ -1,41 +1,123 @@
+from transformers import AutoModelForSequenceClassification, AutoTokenizer, AutoConfig
+import numpy as np
+from scipy.special import softmax
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
+from torch.optim import Adam
+from tfidf import tfidfrun
 
+#Takes line of training text and cleans noise such as usernames or websites
+def preprocess(text, max_length=512):
 
-class CNN_Text(nn.Module):
-    
-    def __init__(self, args):
-        super(CNN_Text, self).__init__()
-        self.args = args
+    new_text = []
+
+    for t in text.split(" "):
+
+        t = '@user' if t.startswith('@') and len(t) > 1 else t
+        t = 'http' if t.startswith('http') else t
+        t = '' if t.isdigit() else t
+        new_text.append(t)
+
+    truncated_text = " ".join(new_text)[:max_length]
+
+    return truncated_text
+
+#Instantiates model, this case being roberta fine-tuned on twitter data
+MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+tokenizer = AutoTokenizer.from_pretrained(MODEL)
+
+config = AutoConfig.from_pretrained(MODEL)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL)
+
+#Instantiate training loop
+optimizer = Adam(model.parameters(), lr=1e-5)
+criterion = nn.CrossEntropyLoss()
+
+#Loads training texts
+def load_train_data(filepath):
+    train_texts = ''
+    with open(filepath, 'r', encoding='utf-8') as file:
+        for line in file:
+            train_texts += line
+    return train_texts
+
+#Instantiates training text load function
+anorexiadata= load_train_data('/Users/evankoenig/Documents/GitHub/cos470/anorexiadata.txt')
+normaldata= load_train_data("/Users/evankoenig/Documents/GitHub/cos470/normaldata.txt")
+
+#Gets labels and texts
+train_texts = [anorexiadata, normaldata]
+train_labels = [1, 0]
+
+#Trains model using epoch number parameter
+def train_model(num_epochs):
+    for epoch in range(num_epochs):
+        total_loss = 0
+        for text, label in zip(train_texts, train_labels):
+
+            text = preprocess(text)
+
+            encoded_input = tokenizer(text, return_tensors='pt')
+
+            output = model(**encoded_input)
+            logits = output.logits
+
+            #find loss
+            loss = criterion(logits, torch.tensor([label]))
+
+            #training step
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        #calculates average loss and prints epoch + that
+        avg_loss = total_loss / len(train_texts)
+        print(f"Epoch {epoch+1}, Average Loss: {avg_loss}")
+
+#test on text passed in
+def test_text(filepath, tfidf_dict, true_sentiment, alpha=0.75, beta=0.25):
+    counter = 0
+    with open(filepath, 'r', encoding='utf-8') as file:
+        for text in file:
+            newtext = preprocess(text)
+            
+            # Tokenize input
+            encoded_input = tokenizer(newtext, return_tensors='pt')
+
+            # Forward pass
+            output = model(**encoded_input)
+            logits = output.logits
+
+            # Predict sentiment
+            probabilities = softmax(logits.detach().numpy(), axis=1)
+            sentiment_label = np.argmax(probabilities)
+
+            # Incorporate TF-IDF score
+            text_tokens = newtext.split()
+            tfidf_score = sum(tfidf_dict.get(word, 0) for word in text_tokens)
+
+            # Combine sentiment prediction and TF-IDF score
+            combined_score = (sentiment_label * alpha) + (tfidf_score * beta)
+
+            # Convert combined score to binary sentiment label
+            if combined_score > 0.5:
+                combined_sentiment = 1
+            else:
+                combined_sentiment = 0
+
+            # Check if combined sentiment matches true sentiment
+            if true_sentiment == combined_sentiment:
+                counter += 1
         
-        V = args.embed_num
-        D = args.embed_dim
-        C = args.class_num
-        Ci = 1
-        Co = args.kernel_num
-        Ks = args.kernel_sizes
+        print(counter)
 
-        self.embed = nn.Embedding(V, D)
-        self.convs = nn.ModuleList([nn.Conv2d(Ci, Co, (K, D)) for K in Ks])
-        self.dropout = nn.Dropout(args.dropout)
-        self.fc1 = nn.Linear(len(Ks) * Co, C)
 
-        if self.args.static:
-            self.embed.weight.requires_grad = False
+# Train the model
+train_model(num_epochs=5)
 
-    def forward(self, x):
-        x = self.embed(x)  # (N, W, D)
-    
-        x = x.unsqueeze(1)  # (N, Ci, W, D)
-
-        x = [F.relu(conv(x)).squeeze(3) for conv in self.convs]  # [(N, Co, W), ...]*len(Ks)
-
-        x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]  # [(N, Co), ...]*len(Ks)
-
-        x = torch.cat(x, 1)
-
-        x = self.dropout(x)  # (N, len(Ks)*Co)
-        logit = self.fc1(x)  # (N, C)
-        return logit
+# Test a piece of text
+#text_to_test = "i am so sad, i want to die. i hate my life."
+test_text('/Users/evankoenig/Documents/GitHub/cos470/anorexia_labels.txt', tfidfrun('/Users/evankoenig/Documents/GitHub/cos470/anorexiadata.txt'),  0)
+test_text('/Users/evankoenig/Documents/GitHub/cos470/normal_labels.txt', tfidfrun('/Users/evankoenig/Documents/GitHub/cos470/normaldata.txt'), 1)
