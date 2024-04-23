@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from tfidf import tfidfrun
+import matplotlib.pyplot as plt
 
 #Takes line of training text and cleans noise such as usernames or websites
 def preprocess(text, max_length=512):
@@ -51,6 +52,7 @@ train_labels = [1, 0]
 
 #Trains model using epoch number parameter
 def train_model(num_epochs):
+    avg_losses = []  # List to store average losses per epoch
     for epoch in range(num_epochs):
         total_loss = 0
         for text, label in zip(train_texts, train_labels):
@@ -62,22 +64,33 @@ def train_model(num_epochs):
             output = model(**encoded_input)
             logits = output.logits
 
-            #find loss
+            # Find loss
             loss = criterion(logits, torch.tensor([label]))
 
-            #training step
+            # Training step
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
 
-        #calculates average loss and prints epoch + that
+        # Calculate average loss and append to list
         avg_loss = total_loss / len(train_texts)
+        avg_losses.append(avg_loss)
+
+        # Print epoch and average loss
         print(f"Epoch {epoch+1}, Average Loss: {avg_loss}")
 
+    # Plot the average loss over epochs
+    plt.plot(range(1, num_epochs+1), avg_losses, label='Average Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Average Loss')
+    plt.title('Training Loss Over Epochs')
+    plt.legend()
+    plt.show()
+
 #test on text passed in
-def test_text(filepath, tfidf_dict, true_sentiment, alpha=0.75, beta=0.25):
+def test_text(filepath, tfidf_dict, true_sentiment, alpha=0.55, beta=0.45):
     counter = 0
     with open(filepath, 'r', encoding='utf-8') as file:
         for text in file:
@@ -110,7 +123,9 @@ def test_text(filepath, tfidf_dict, true_sentiment, alpha=0.75, beta=0.25):
             # Check if combined sentiment matches true sentiment
             if true_sentiment == combined_sentiment:
                 counter += 1
-        
+
+            print(f"T: {true_sentiment} P: {combined_sentiment} || {text}")
+
         print(counter)
 
 
