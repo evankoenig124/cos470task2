@@ -115,16 +115,16 @@ def test_text(filepath, tfidf_dict, true_sentiment, alpha=0.55, beta=0.45):
             combined_score = (sentiment_label * alpha) + (tfidf_score * beta)
 
             # Convert combined score to binary sentiment label
-            if combined_score > 0.5:
+            '''if combined_score > 0.5:
                 combined_sentiment = 1
             else:
-                combined_sentiment = 0
+                combined_sentiment = 0'''
 
             # Check if combined sentiment matches true sentiment
-            if true_sentiment == combined_sentiment:
+            if true_sentiment == combined_score:
                 counter += 1
 
-            print(f"T: {true_sentiment} P: {combined_sentiment} || {text}")
+            print(f"T: {true_sentiment} P: {combined_score} || {text}")
 
         print(counter)
 
