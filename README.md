@@ -25,4 +25,4 @@ The model will then test on each of the testing labels (same labels as used in t
 
 Model prints T (true label), P (predicted label), and the line it tested on
 
-In this model, 2 is a positive sentiment, meaning the user likely does not have anorexia. 0 is a negative sentiment, meaning the user likely has anorexia. 1 is a neutral sentiment, meaning there is no clear conclusion that can be reached.
+In this model, 1 is a positive sentiment, meaning the user likely does not have anorexia. 0 is a negative sentiment, meaning the user likely has anorexia. 0.5 is a neutral sentiment, meaning there is no clear conclusion that can be reached.
